@@ -1,0 +1,139 @@
+import pandas as pd
+import numpy as np
+
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.naive_bayes import GaussianNB
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neural_network import MLPClassifier
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+#%matplotlib inline
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+df = pd.read_csv('Dataset_2.csv')
+df.head()
+df.describe()
+df.info()
+
+corr = df.corr()
+print(corr.columns)
+sns.heatmap(corr)
+df.columns
+
+for i in df['Salary']:
+    print("-", i, "-")
+    print(str.strip(i))
+    print(i.strip() is "<=50K")
+    print(i.strip() == "<==50K")
+    print((i == "<=50K"))
+    break
+
+df['Salary'] = [0 if salary.strip() =="<=50K" else 1 if salary.strip()==">50K" else salary for salary in df['Salary']]
+
+for column in df.columns:
+    df[column] = [value.strip() if type(value) == str else value for value in df[column]]
+    df.head()
+
+wc_enc = preprocessing.LabelEncoder()
+X = df['WC']
+wc_enc.fit(X.values)
+df['WC'] = wc_enc.transform(df['WC'].values)
+
+el_enc = preprocessing.LabelEncoder()
+X = df['EL']
+el_enc.fit(X.values)
+df['EL'] = el_enc.transform(df['EL'].values)
+
+ms_enc = preprocessing.LabelEncoder()
+X = df['MS']
+ms_enc.fit(X.values)
+df['MS'] = ms_enc.transform(df['MS'].values)
+
+occ_enc = preprocessing.LabelEncoder()
+X = df['Occ']
+occ_enc.fit(X.values)
+df['Occ'] = occ_enc.transform(df['Occ'].values)
+
+rs_enc = preprocessing.LabelEncoder()
+X = df['RS']
+rs_enc.fit(X.values)
+df['RS'] = rs_enc.transform(df['RS'].values)
+
+gender_enc = preprocessing.LabelEncoder()
+X = df['Gender']
+gender_enc.fit(X.values)
+df['Gender'] = gender_enc.transform(df['Gender'].values)
+df.head()
+
+columns_to_use = ['Age', 'WC', 'EL', 'Year', 'MS', 'Occ', 'RS', 'Gender', 'CG', 'CL', 'Hours']
+
+X = df[columns_to_use]
+y = df['Salary']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+print(X_train.shape)
+print(X_test.shape)
+
+
+def train_with_folds(clf):
+    # split array in k(number of folds) sub arrays
+    X_folds = np.array_split(X_train, 3)
+    y_folds = np.array_split(y_train, 3)
+
+    scores = list()
+    models = list()
+    for k in range(3):
+        # We use 'list' to copy, in order to 'pop' later on
+        X_train_fold = list(X_folds)
+        # pop out kth sub array for testing
+        X_test_fold = X_train_fold.pop(k)
+        # concatenate remaining sub arrays for training
+        X_train_fold = np.concatenate(X_train_fold)
+
+        # same process for y
+        y_train_fold = list(y_folds)
+        y_test_fold = y_train_fold.pop(k)
+        y_train_fold = np.concatenate(y_train_fold)
+
+        clf = clf.fit(X_train_fold, y_train_fold)
+        scores.append(clf.score(X_test_fold, y_test_fold))
+        models.append(clf)
+
+    print(scores)
+
+# using Gaussian Naive Bayes Method:
+gnb = GaussianNB()
+gnb = gnb.fit(X_train, y_train)
+pred = gnb.predict(X_test)
+print("mean accuracy for Gaussian naive bayes",gnb.score(X_test, y_test))
+train_with_folds(clf=GaussianNB())
+
+# using Decision Tree Classifier:
+clf = DecisionTreeClassifier(max_depth=10)
+clf = clf.fit(X_train, y_train)
+print("mean accuracy for Decision Tree Classifier ", clf.score(X_test, y_test))
+clf = DecisionTreeClassifier(max_depth=10)
+train_with_folds(clf)
+
+# using MLP classifier:
+clf = MLPClassifier(solver='adam', activation='tanh', alpha=1e-5, hidden_layer_sizes=(15, 5), random_state=43)
+clf = clf.fit(X_train, y_train)
+print("mean accuracy for MLP", clf.score(X_test, y_test))
+clf = MLPClassifier(solver='adam', activation='tanh', alpha=1e-5, hidden_layer_sizes=(9, 2), random_state=43)
+train_with_folds(clf)
+
+# printing the profile of all the persons whose salary is likely >50K
+print(type(pred))
+pred_index = 0
+for row in np.nditer(pred):
+    if row == 1:
+        POI = X_test.iloc[pred_index]
+        print("required profile is ",gender_enc.inverse_transform([POI['Gender']])[0], " ", POI['Age'] ," ", \
+              occ_enc.inverse_transform([POI['Occ']])[0], " ",rs_enc.inverse_transform([POI['RS']])[0])
+
+    pred_index += 1
+
+
